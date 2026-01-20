@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>For You ❤️</title>
+<style>
+body {
+  margin: 0;
+  height: 100vh;
+  background: #0f0f14;
+  color: #fff;
+  font-family: Segoe UI, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#gameWrap, #lettersWrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#lettersWrap { display: none; }
+canvas {
+  background: #111;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.6);
+}
+.hint {
+  position: absolute;
+  bottom: 16px;
+  color: rgba(255,255,255,.7);
+  font-size: 14px;
+}
+img {
+  max-width: 90%;
+  max-height: 90%;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.6);
+  transition: opacity .6s;
+}
+/* Mobile Controls */
+#controls {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+#controls button {
+  font-size: 24px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  background: #222;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(0,0,0,.5);
+  user-select: none;
+}
+#controls button:active {
+  background: #555;
+}
+</style>
+</head>
+<body>
+<audio id="bgm" src="music.mp3" loop></audio>
+
+<!-- Mini Tetris -->
+<div id="gameWrap">
+  <canvas id="tetris" width="240" height="400"></canvas>
+  <div class="hint">Clear 2 lines to unlock 💖 (← → ↓ rotate: ↑)</div>
+</div>
+
+<!-- Letters -->
+<div id="lettersWrap">
+  <img id="letter" src="letter1.png" />
+  <div class="hint" id="lh">Tap to begin 💕</div>
+</div>
+
+<!-- Mobile Controls -->
+<div id="controls">
+  <button id="leftBtn">◀</button>
+  <button id="rotateBtn">⟳</button>
+  <button id="downBtn">▼</button>
+  <button id="rightBtn">▶</button>
+</div>
+
+<script>
+// --- Tiny Tetris ---
+const cvs = document.getElementById('tetris');
+const ctx = cvs.getContext('2d');
+const COL = 10, ROW = 20, SZ = 20;
+let board = Array.from({length:ROW},()=>Array(COL).fill(0));
+const shapes = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[1,1,0],[0,1,1]],
+  [[0,1,1],[1,1,0]]
+];
+let p = newPiece();
+let lines = 0;
+
+function newPiece() {
+  const m = shapes[Math.random()*shapes.length|0];
+  return { m, x:3, y:0 };
+}
+
+function draw() {
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  for(let y=0;y<ROW;y++) for(let x=0;x<COL;x++) if(board[y][x]) box(x,y);
+  p.m.forEach((r,yy)=>r.forEach((v,xx)=>v && box(p.x+xx,p.y+yy)));
+}
+
+function box(x,y) { ctx.fillStyle='#ff7aa8'; ctx.fillRect(x*SZ,y*SZ,SZ-1,SZ-1); }
+
+function collide(nx,ny,m=p.m){
+  return m.some((r,y)=>r.some((v,x)=>v && (board[ny+y]?.[nx+x]===1 || nx+x<0 || nx+x>=COL || ny+y>=ROW)));
+}
+
+function merge() { p.m.forEach((r,y)=>r.forEach((v,x)=>v&&(board[p.y+y][p.x+x]=1))); }
+
+function rotate() {
+  const m = p.m[0].map((_,i)=>p.m.map(r=>r[i]).reverse());
+  if(!collide(p.x,p.y,m)) p.m = m;
+}
+
+function drop() {
+  if(!collide(p.x,p.y+1)) { p.y++; }
+  else { merge(); clearLines(); p=newPiece(); }
+}
+
+function clearLines(){
+  let c=0;
+  board = board.filter(r=>{ if(r.every(v=>v)){c++; return false;} return true; });
+  while(board.length<ROW) board.unshift(Array(COL).fill(0));
+  lines += c;
+  if(lines >= 2) unlock();
+}
+
+function unlock() {
+  document.getElementById('gameWrap').style.display='none';
+  document.getElementById('lettersWrap').style.display='flex';
+}
+
+setInterval(()=>{ drop(); draw(); }, 300);
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft' && !collide(p.x-1,p.y)) p.x--;
+  if(e.key==='ArrowRight' && !collide(p.x+1,p.y)) p.x++;
+  if(e.key==='ArrowDown') drop();
+  if(e.key==='ArrowUp') rotate();
+  draw();
+});
+
+// --- Mobile Controls ---
+document.getElementById('leftBtn').addEventListener('touchstart', e => { e.preventDefault(); if(!collide(p.x-1,p.y)) p.x--; draw(); });
+document.getElementById('rightBtn').addEventListener('touchstart', e => { e.preventDefault(); if(!collide(p.x+1,p.y)) p.x++; draw(); });
+document.getElementById('downBtn').addEventListener('touchstart', e => { e.preventDefault(); drop(); draw(); });
+document.getElementById('rotateBtn').addEventListener('touchstart', e => { e.preventDefault(); rotate(); draw(); });
+
+// --- Letters logic ---
+const letters = ['letter1.png','letter2.png','letter3.png','letter4.png'];
+let i = 0, started = false;
+const img = document.getElementById('letter');
+</script>
+</body>
+</html>
